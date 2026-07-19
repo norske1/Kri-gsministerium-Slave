@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { Client, GatewayIntentBits, Routes, REST, MessageFlags } from 'discord.js';
+import { Client, GatewayIntentBits, Routes, REST, MessageFlags, Partials } from 'discord.js';
 import { commands } from './commands.js';
 import { TOKEN, CLIENT_ID, GUILD_ID, OWNER_ID } from './config.js';
 import {
@@ -11,13 +11,19 @@ import {
   getAccess,
   hasAccess,
 } from './access.js';
+import { loadApplications } from './applications.js';
+import { handleMedalInteraction, postPanel } from './medalFlow.js';
+import { PANEL_CHANNEL_ID } from './medals.js';
 
 if (!TOKEN) {
   console.error('DISCORD_TOKEN is not set. Add it to the environment or .env file.');
   process.exit(1);
 }
 
-const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+const client = new Client({
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.DirectMessages],
+  partials: [Partials.Channel, Partials.Message],
+});
 
 async function registerCommands(readyClient) {
   const rest = new REST({ version: '10' }).setToken(TOKEN);
@@ -45,6 +51,23 @@ function isOwner(interaction) {
 }
 
 client.on('interactionCreate', async (interaction) => {
+  // Buttons and modals (application panel, review DMs, deny reasons) are
+  // handled by the medal flow, including in DM channels.
+  if (interaction.isButton() || interaction.isModalSubmit()) {
+    try {
+      await handleMedalInteraction(interaction, client);
+    } catch (err) {
+      console.error('Error handling component interaction:', err);
+      const payload = { content: 'Something went wrong.', flags: MessageFlags.Ephemeral };
+      if (interaction.deferred || interaction.replied) {
+        await interaction.followUp(payload).catch(() => {});
+      } else {
+        await interaction.reply(payload).catch(() => {});
+      }
+    }
+    return;
+  }
+
   if (!interaction.isChatInputCommand()) return;
 
   if (!interaction.inGuild()) {
@@ -55,6 +78,24 @@ client.on('interactionCreate', async (interaction) => {
   const { commandName, guildId } = interaction;
 
   try {
+    if (commandName === 'panel') {
+      if (!isOwner(interaction)) {
+        await interaction.reply({
+          content: 'Only the bot owner can post the panel.',
+          flags: MessageFlags.Ephemeral,
+        });
+        return;
+      }
+      const channel = interaction.options.getChannel('channel');
+      const channelId = channel ? channel.id : PANEL_CHANNEL_ID;
+      await postPanel(client, channelId);
+      await interaction.reply({
+        content: `Panel posted in <#${channelId}>.`,
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
     if (commandName === 'allow' || commandName === 'deny' || commandName === 'accesslist') {
       if (!isOwner(interaction)) {
         await interaction.reply({
@@ -147,4 +188,5 @@ client.on('interactionCreate', async (interaction) => {
 });
 
 await loadAccess();
+await loadApplications();
 await client.login(TOKEN);

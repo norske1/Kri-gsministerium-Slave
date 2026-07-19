@@ -31,4 +31,14 @@ export const commands = [
   new SlashCommandBuilder()
     .setName('ping')
     .setDescription('Check the bot is responding (requires usage access).'),
+
+  new SlashCommandBuilder()
+    .setName('panel')
+    .setDescription('Post the medal request panel (owner only).')
+    .addChannelOption((opt) =>
+      opt
+        .setName('channel')
+        .setDescription('Channel to post in (defaults to the configured medal channel).')
+        .setRequired(false),
+    ),
 ].map((c) => c.toJSON());
