@@ -218,6 +218,7 @@ export async function handleMedalInteraction(interaction, client) {
       type: check.type,
       sheetTab: check.sheetTab,
       status: check.status,
+      upsert: check.upsert,
     });
     await sendReviewDMs(client, reqId);
     await interaction.editReply({
@@ -250,15 +251,18 @@ export async function handleMedalInteraction(interaction, client) {
     let sheetNote = '';
     if (sheetsEnabled()) {
       try {
-        const { row, sheet } = await logApproved({
+        const { row, sheet, updated } = await logApproved({
           username: req.username,
           profileLink: req.profileLink,
           item: req.medal,
           klass: req.klass,
           sheetTab: req.sheetTab,
           status: req.status,
+          upsert: req.upsert,
         });
-        sheetNote = ` Logged to ${sheet} row ${row}.`;
+        sheetNote = updated
+          ? ` Updated existing ${sheet} row ${row} (class set to ${req.klass}).`
+          : ` Logged to ${sheet} row ${row}.`;
       } catch (err) {
         console.error('Failed to log to sheet:', err.message);
         sheetNote = ' (Warning: failed to write to the Google Sheet — check logs.)';

@@ -27,13 +27,23 @@ export const VENERATIONS = {
 
 // Per-type configuration: catalog, sheet tab to log approvals to, and labels.
 export const CATALOGS = {
-  medal: { map: MEDALS, sheetTab: 'Medals', label: 'Medal', noun: 'medal', status: 'Approved' },
+  medal: {
+    map: MEDALS,
+    sheetTab: 'Medals',
+    label: 'Medal',
+    noun: 'medal',
+    status: 'Approved',
+    upsert: false,
+  },
   veneration: {
     map: VENERATIONS,
     sheetTab: 'Venerations',
     label: 'Veneration',
     noun: 'veneration',
     status: 'Active',
+    // Existing applicants (matched by Profile Link) get their class updated
+    // instead of a new row being appended.
+    upsert: true,
   },
 };
 
@@ -73,7 +83,13 @@ export function resolveEntry(item, klass) {
           reason: `"${klass}" is not a valid class for "${item}". Allowed: ${classes.join(', ')}.`,
         };
       }
-      return { ok: true, type, sheetTab: catalog.sheetTab, status: catalog.status };
+      return {
+        ok: true,
+        type,
+        sheetTab: catalog.sheetTab,
+        status: catalog.status,
+        upsert: catalog.upsert,
+      };
     }
   }
   const allowed = Object.values(CATALOGS)
