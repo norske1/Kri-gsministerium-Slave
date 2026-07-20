@@ -8,7 +8,7 @@ import {
   TextInputStyle,
   MessageFlags,
 } from 'discord.js';
-import { MEDALS, REVIEWER_IDS, PANEL_CHANNEL_ID, validateMedal } from './medals.js';
+import { CATALOGS, REVIEWER_IDS, PANEL_CHANNEL_ID, resolveEntry, getCatalog } from './medals.js';
 import {
   getCooldownRemaining,
   setDenyCooldown,
@@ -38,14 +38,26 @@ function formatDuration(ms) {
 
 export async function postPanel(client, channelId = PANEL_CHANNEL_ID) {
   const channel = await client.channels.fetch(channelId);
+  const optionLines = Object.values(CATALOGS)
+    .map((c) => {
+      const names = Object.keys(c.map)
+        .map((n) => `\`${n}\``)
+        .join(', ');
+      return `**${c.label}s:** ${names}`;
+    })
+    .join('\n');
   const embed = new EmbedBuilder()
-    .setTitle('Medal Request')
-    .setDescription('Click the button below to request a medal. All fields are required.')
+    .setTitle('Medal / Veneration Request')
+    .setDescription(
+      'Click the button below to submit a request. All fields are required.\n' +
+        'In the "Medal Requesting" field, enter one of:\n' +
+        optionLines,
+    )
     .setColor(0xc8a24b);
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setCustomId(APPLY_BUTTON)
-      .setLabel('Request Medal')
+      .setLabel('Submit Request')
       .setStyle(ButtonStyle.Primary),
   );
   return channel.send({ embeds: [embed], components: [row] });
@@ -54,7 +66,7 @@ export async function postPanel(client, channelId = PANEL_CHANNEL_ID) {
 // ---- Modal ----------------------------------------------------------------
 
 function buildApplicationModal() {
-  const modal = new ModalBuilder().setCustomId(APPLY_MODAL).setTitle('Medal Request');
+  const modal = new ModalBuilder().setCustomId(APPLY_MODAL).setTitle('Medal / Veneration Request');
   const fields = [
     ['username', 'Username', TextInputStyle.Short],
     ['profile_link', 'Profile Link', TextInputStyle.Short],
@@ -75,14 +87,16 @@ function buildApplicationModal() {
 // ---- Review embed / messages ---------------------------------------------
 
 function buildReviewEmbed(req, decision) {
+  const catalog = getCatalog(req.type);
+  const itemLabel = catalog ? catalog.label : 'Item';
   const embed = new EmbedBuilder()
-    .setTitle('Medal Request')
+    .setTitle(`${itemLabel} Request`)
     .setColor(decision === 'accepted' ? 0x2ecc71 : decision === 'denied' ? 0xe74c3c : 0xf1c40f)
     .addFields(
       { name: 'Applicant', value: `<@${req.userId}> (${req.userId})` },
       { name: 'Username', value: req.username },
       { name: 'Profile Link', value: req.profileLink },
-      { name: 'Medal', value: req.medal, inline: true },
+      { name: itemLabel, value: req.medal, inline: true },
       { name: 'Class', value: req.klass, inline: true },
       { name: 'Proof', value: req.proof },
     )
@@ -184,7 +198,7 @@ export async function handleMedalInteraction(interaction, client) {
     const klass = interaction.fields.getTextInputValue('klass').trim();
     const proof = interaction.fields.getTextInputValue('proof').trim();
 
-    const check = validateMedal(medal, klass);
+    const check = resolveEntry(medal, klass);
     if (!check.ok) {
       await interaction.reply(ephemeral(`Your request could not be submitted.\n${check.reason}`));
       return true;
@@ -197,10 +211,13 @@ export async function handleMedalInteraction(interaction, client) {
       medal,
       klass,
       proof,
+      type: check.type,
+      sheetTab: check.sheetTab,
+      status: check.status,
     });
     await sendReviewDMs(client, reqId);
     await interaction.reply(
-      ephemeral('Your medal request has been submitted for review. You will be notified of the decision.'),
+      ephemeral('Your request has been submitted for review. You will be notified of the decision.'),
     );
     return true;
   }
@@ -229,7 +246,14 @@ export async function handleMedalInteraction(interaction, client) {
     let sheetNote = '';
     if (sheetsEnabled()) {
       try {
-        const { row, sheet } = await logApproved(req);
+        const { row, sheet } = await logApproved({
+          username: req.username,
+          profileLink: req.profileLink,
+          item: req.medal,
+          klass: req.klass,
+          sheetTab: req.sheetTab,
+          status: req.status,
+        });
         sheetNote = ` Logged to ${sheet} row ${row}.`;
       } catch (err) {
         console.error('Failed to log to sheet:', err.message);
@@ -239,7 +263,7 @@ export async function handleMedalInteraction(interaction, client) {
       sheetNote = ' (Google Sheet logging is not configured.)';
     }
 
-    await dmUser(client, req.userId, `Your medal request (${req.medal} — ${req.klass}) was **approved**.`);
+    await dmUser(client, req.userId, `Your request (${req.medal} — ${req.klass}) was **approved**.`);
     await updateAllReviewerMessages(client, req);
     await interaction.editReply({ content: `Request accepted.${sheetNote}` });
     return true;
@@ -294,7 +318,7 @@ export async function handleMedalInteraction(interaction, client) {
     await dmUser(
       client,
       req.userId,
-      `Your medal request (${req.medal} — ${req.klass}) was **denied**.\nReason: ${reason}\nYou may submit a new request in 30 minutes.`,
+      `Your request (${req.medal} — ${req.klass}) was **denied**.\nReason: ${reason}\nYou may submit a new request in 30 minutes.`,
     );
     await updateAllReviewerMessages(client, req);
     await interaction.editReply({ content: 'Request denied and the applicant has been notified.' });
@@ -303,5 +327,3 @@ export async function handleMedalInteraction(interaction, client) {
 
   return false;
 }
-
-export { MEDALS };

@@ -1,8 +1,7 @@
 import { google } from 'googleapis';
-import { SHEET_ID, SHEET_GID, GOOGLE_SERVICE_ACCOUNT_JSON } from './config.js';
+import { SHEET_ID, GOOGLE_SERVICE_ACCOUNT_JSON } from './config.js';
 
 let sheetsClient = null;
-let sheetTitle = null;
 
 export function sheetsEnabled() {
   return Boolean(GOOGLE_SERVICE_ACCOUNT_JSON);
@@ -22,28 +21,18 @@ async function getClient() {
   return sheetsClient;
 }
 
-async function getSheetTitle(sheets) {
-  if (sheetTitle) return sheetTitle;
-  const meta = await sheets.spreadsheets.get({ spreadsheetId: SHEET_ID });
-  const sheet =
-    meta.data.sheets.find((s) => s.properties.sheetId === SHEET_GID) || meta.data.sheets[0];
-  sheetTitle = sheet.properties.title;
-  return sheetTitle;
-}
-
 /**
- * Append an approved request. Writes:
- *   D = username, G = profileLink, H = medal, I = klass, J = "Approved"
+ * Append an approved request to the given sheet tab. Writes:
+ *   D = username, G = profileLink, H = item, I = klass, J = status
  * (E and F are left blank). The target row is the first empty row based on
  * the current contents of column D.
  */
-export async function logApproved({ username, profileLink, medal, klass }) {
+export async function logApproved({ username, profileLink, item, klass, sheetTab, status }) {
   const sheets = await getClient();
-  const title = await getSheetTitle(sheets);
 
   const existing = await sheets.spreadsheets.values.get({
     spreadsheetId: SHEET_ID,
-    range: `${title}!D:D`,
+    range: `${sheetTab}!D:D`,
   });
   const rows = existing.data.values ? existing.data.values.length : 0;
   const row = rows + 1;
@@ -53,12 +42,12 @@ export async function logApproved({ username, profileLink, medal, klass }) {
     requestBody: {
       valueInputOption: 'USER_ENTERED',
       data: [
-        { range: `${title}!D${row}`, values: [[username]] },
-        { range: `${title}!G${row}:I${row}`, values: [[profileLink, medal, klass]] },
-        { range: `${title}!J${row}`, values: [['Approved']] },
+        { range: `${sheetTab}!D${row}`, values: [[username]] },
+        { range: `${sheetTab}!G${row}:I${row}`, values: [[profileLink, item, klass]] },
+        { range: `${sheetTab}!J${row}`, values: [[status]] },
       ],
     },
   });
 
-  return { row, sheet: title };
+  return { row, sheet: sheetTab };
 }
