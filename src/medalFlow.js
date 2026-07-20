@@ -184,11 +184,15 @@ export async function handleMedalInteraction(interaction, client) {
 
   // Application form submitted.
   if (interaction.isModalSubmit() && interaction.customId === APPLY_MODAL) {
+    // Defer immediately: sending the review DMs can take longer than Discord's
+    // 3-second window to acknowledge the interaction.
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
     const remaining = getCooldownRemaining(interaction.user.id);
     if (remaining > 0) {
-      await interaction.reply(
-        ephemeral(`Please wait ${formatDuration(remaining)} before submitting another request.`),
-      );
+      await interaction.editReply({
+        content: `Please wait ${formatDuration(remaining)} before submitting another request.`,
+      });
       return true;
     }
 
@@ -200,7 +204,7 @@ export async function handleMedalInteraction(interaction, client) {
 
     const check = resolveEntry(medal, klass);
     if (!check.ok) {
-      await interaction.reply(ephemeral(`Your request could not be submitted.\n${check.reason}`));
+      await interaction.editReply({ content: `Your request could not be submitted.\n${check.reason}` });
       return true;
     }
 
@@ -216,9 +220,9 @@ export async function handleMedalInteraction(interaction, client) {
       status: check.status,
     });
     await sendReviewDMs(client, reqId);
-    await interaction.reply(
-      ephemeral('Your request has been submitted for review. You will be notified of the decision.'),
-    );
+    await interaction.editReply({
+      content: 'Your request has been submitted for review. You will be notified of the decision.',
+    });
     return true;
   }
 
