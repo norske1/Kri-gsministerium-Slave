@@ -217,7 +217,7 @@ export async function handleMedalInteraction(interaction, client) {
       proof,
       type: check.type,
       sheetTab: check.sheetTab,
-      status: check.status,
+      sheetStatus: check.status,
       upsert: check.upsert,
     });
     await sendReviewDMs(client, reqId);
@@ -257,7 +257,7 @@ export async function handleMedalInteraction(interaction, client) {
           item: req.medal,
           klass: req.klass,
           sheetTab: req.sheetTab,
-          status: req.status,
+          status: req.sheetStatus,
           upsert: req.upsert,
         });
         sheetNote = updated
