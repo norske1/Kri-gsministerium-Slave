@@ -1,0 +1,20 @@
+{
+  "name": "nr25-access-bot",
+  "version": "1.0.0",
+  "description": "Discord bot with owner-controlled usage access for users and roles",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "deploy": "node src/deploy-commands.js"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "discord.js": "^14.16.3",
+    "dotenv": "^16.4.5",
+    "googleapis": "^144.0.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
